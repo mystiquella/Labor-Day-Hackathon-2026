@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Activity, AlertTriangle, Gauge, Mountain, Radar, ShieldAlert, ChevronRight } from "lucide-react";
 import { GLACIERS, LAST_OBSERVATION_DATE } from "@/data/glaciers";
 import { computeRisk, topContributingFactors, buildAnalysisText, WARNING_TEXT, RISK_COLORS, riskLevel } from "@/lib/riskModel";
-import GlacierMap from "@/components/GlacierMap";
+import GlacierMap3D from "@/components/GlacierMap3D";
 import RiskBadge from "@/components/RiskBadge";
 
 function StatCard({ icon: Icon, label, value, sub, accent }) {
@@ -58,7 +58,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           {/* Map */}
           <div className="xl:col-span-2">
-            <GlacierMap glaciers={GLACIERS} selectedId={selectedId} onSelect={setSelectedId} height={500} />
+            <GlacierMap3D glaciers={GLACIERS} selectedId={selectedId} onSelect={setSelectedId} height={500} />
           </div>
 
           {/* Selected glacier panel */}
