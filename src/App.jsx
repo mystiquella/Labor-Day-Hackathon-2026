@@ -6,6 +6,12 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
+import Layout from '@/components/Layout';
+import Dashboard from '@/pages/Dashboard';
+import GlacierExplorer from '@/pages/GlacierExplorer';
+import RiskAnalysis from '@/pages/RiskAnalysis';
+import CompareGlaciers from '@/pages/CompareGlaciers';
+import About from '@/pages/About';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -34,7 +40,13 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/explorer" element={<GlacierExplorer />} />
+        <Route path="/analysis" element={<RiskAnalysis />} />
+        <Route path="/compare" element={<CompareGlaciers />} />
+        <Route path="/about" element={<About />} />
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
