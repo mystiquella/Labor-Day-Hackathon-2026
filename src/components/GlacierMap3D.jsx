@@ -17,37 +17,86 @@ const SPINE = [
   [28.5, 92.5], [29.0, 94.0], [29.5, 95.0],
 ];
 
+// Major Himalayan/Karakoram/Hindu Kush peaks at real coordinates [lat, lon, elev_m].
+// Heights in the 3D scene are proportional to real elevation for geographical accuracy.
+const PEAKS = [
+  [27.99, 86.93, 8848], // Everest
+  [35.88, 76.51, 8611], // K2
+  [27.70, 88.15, 8586], // Kangchenjunga
+  [27.96, 86.93, 8516], // Lhotse
+  [27.89, 87.09, 8485], // Makalu
+  [35.24, 74.59, 8126], // Nanga Parbat
+  [28.70, 83.49, 8167], // Dhaulagiri
+  [28.60, 83.82, 8091], // Annapurna
+  [35.81, 76.65, 8051], // Broad Peak
+  [35.72, 76.70, 8080], // Gasherbrum I
+  [28.55, 84.56, 8163], // Manaslu
+  [28.10, 86.66, 8201], // Cho Oyu
+  [28.35, 85.78, 8027], // Shishapangma
+  [36.28, 74.49, 7788], // Rakaposhi
+  [36.25, 71.84, 7708], // Tirich Mir
+  [30.37, 79.99, 7816], // Nanda Devi
+  [30.92, 81.16, 7756], // Kamet
+  [31.07, 81.31, 6638], // Kailash
+  [34.88, 77.72, 7672], // Saser Kangri
+  [28.43, 84.64, 7893], // Himalchuli
+  [28.05, 90.44, 7570], // Gangkhar Puensum
+  [29.63, 95.06, 7782], // Namcha Barwa
+  [33.98, 76.87, 7135], // Nun Kun
+  [27.83, 89.27, 7326], // Jomolhari
+  [35.58, 77.08, 7468], // Teram Kangri
+];
+
 function lonLatToWorld(lon, lat) {
   const x = ((lon - MIN_LON) / (MAX_LON - MIN_LON)) * W3 - W3 / 2;
   const z = -(((lat - MIN_LAT) / (MAX_LAT - MIN_LAT)) * D3 - D3 / 2);
   return { x, z };
 }
 
-// Analytical terrain height from distance to the ridge spine + low-freq relief.
+// Analytical terrain height: geographically-placed major peaks (height ∝ real
+// elevation) on top of the orographic spine baseline, with rugged crag noise.
 function terrainHeight(lon, lat) {
+  let h = 1.4; // valley floor
+
+  // Ridge spine baseline
   let minD = Infinity;
   for (const [sla, slo] of SPINE) {
     const d = Math.hypot((lon - slo) * 1.05, (lat - sla) * 1.35);
     if (d < minD) minD = d;
   }
-  const ridge = Math.exp(-(minD * minD) / (2 * 0.95 * 0.95));
-  const noise =
-    0.18 * (Math.sin(lon * 1.7) + Math.cos(lat * 1.4)) +
-    0.12 * Math.sin(lon * 3.0 + lat * 2.1) +
-    0.08 * Math.cos(lat * 4.2 - lon * 1.3);
-  return ridge * 8.5 + noise * 1.6 + 0.7;
+  h += Math.exp(-(minD * minD) / (2 * 1.15 * 1.15)) * 2.2;
+
+  // Major peaks — bigger mountains where the real 8000m+ massifs sit
+  for (const [pla, plo, elev] of PEAKS) {
+    const d = Math.hypot((lon - plo) * 1.15, (lat - pla) * 1.4);
+    const sigma = 0.5 + ((8800 - elev) / 8800) * 0.55;
+    const amp = ((elev - 5500) / 3300) * 14; // 5500m→0, 8848m→~14
+    if (amp <= 0) continue;
+    const g = Math.exp(-(d * d) / (2 * sigma * sigma));
+    h += amp * Math.pow(g, 0.6); // sharpened summits
+  }
+
+  // Rugged crag detail (stronger on higher ground)
+  const relief = Math.max(0.15, h / 15);
+  const n1 = 0.5 * Math.sin(lon * 2.3 + 1.7) * Math.cos(lat * 2.1);
+  const n2 = 0.35 * Math.sin(lon * 4.1 + lat * 3.3) * Math.cos(lat * 3.7);
+  const n3 = 0.22 * Math.sin(lon * 7.2 - lat * 5.1);
+  h += (n1 + n2 + n3) * relief;
+  return h;
 }
 
 function heightColor(h, maxH) {
   const t = Math.min(1, h / maxH);
-  // dark slate valleys -> teal mid -> icy white peaks
+  // valley (dark blue) -> rock (slate) -> upper rock (grey) -> snow cap (white)
   const c = new THREE.Color();
-  if (t < 0.45) {
-    c.lerpColors(new THREE.Color("#0b1f33"), new THREE.Color("#0e3a52"), t / 0.45);
-  } else if (t < 0.78) {
-    c.lerpColors(new THREE.Color("#0e3a52"), new THREE.Color("#3b6f86"), (t - 0.45) / 0.33);
+  if (t < 0.3) {
+    c.lerpColors(new THREE.Color("#0a1b2e"), new THREE.Color("#16304a"), t / 0.3);
+  } else if (t < 0.55) {
+    c.lerpColors(new THREE.Color("#16304a"), new THREE.Color("#3c4a52"), (t - 0.3) / 0.25);
+  } else if (t < 0.8) {
+    c.lerpColors(new THREE.Color("#3c4a52"), new THREE.Color("#9aa6b2"), (t - 0.55) / 0.25);
   } else {
-    c.lerpColors(new THREE.Color("#3b6f86"), new THREE.Color("#e6eef5"), (t - 0.78) / 0.22);
+    c.lerpColors(new THREE.Color("#9aa6b2"), new THREE.Color("#f1f5f9"), (t - 0.8) / 0.2);
   }
   return c;
 }
@@ -84,7 +133,7 @@ export default function GlacierMap3D({ glaciers, selectedId, onSelect, height = 
     container.appendChild(renderer.domElement);
 
     // Terrain mesh
-    const SEG = 140;
+    const SEG = 180;
     const geo = new THREE.PlaneGeometry(W3, D3, SEG, SEG);
     geo.rotateX(-Math.PI / 2); // lay flat, y up
     const pos = geo.attributes.position;
@@ -140,17 +189,17 @@ export default function GlacierMap3D({ glaciers, selectedId, onSelect, height = 
     scene.add(markerGroup);
     const colorHex = (lvl) => new THREE.Color(RISK_COLORS[lvl]);
     const markerMeshes = markerData.map((m) => {
-      const g = new THREE.SphereGeometry(1.6, 16, 16);
+      const g = new THREE.SphereGeometry(2.0, 18, 18);
       const c = colorHex(m.level);
-      const mm = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.7, roughness: 0.4 });
+      const mm = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.8, roughness: 0.35 });
       const sphere = new THREE.Mesh(g, mm);
-      sphere.position.set(m.pos[0], m.pos[1] + 1.5, m.pos[2]);
+      sphere.position.set(m.pos[0], m.pos[1] + 2.2, m.pos[2]);
       sphere.userData = { id: m.id, baseColor: c };
       markerGroup.add(sphere);
 
       // glow halo
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(3.2, 16, 16),
+        new THREE.SphereGeometry(4.4, 18, 18),
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.18, depthWrite: false })
       );
       halo.position.copy(sphere.position);
@@ -162,8 +211,8 @@ export default function GlacierMap3D({ glaciers, selectedId, onSelect, height = 
 
     // Selected ring (reused)
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(3.4, 0.18, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
+      new THREE.TorusGeometry(4.6, 0.22, 14, 56),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 })
     );
     ring.rotation.x = Math.PI / 2;
     ring.visible = false;
@@ -171,10 +220,10 @@ export default function GlacierMap3D({ glaciers, selectedId, onSelect, height = 
 
     // Camera orbit state
     const cam = {
-      radius: 210,
+      radius: 245,
       azimuth: 0.6,
-      polar: 1.15,
-      target: new THREE.Vector3(0, 4, 0),
+      polar: 1.05,
+      target: new THREE.Vector3(0, 7, 0),
       autoSpin: 0.0014,
     };
     const updateCamera = () => {
